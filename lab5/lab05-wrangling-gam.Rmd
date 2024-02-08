@@ -332,8 +332,35 @@ Let's practice running regression models with smooth functions on X. We need the
 - fit both a linear model and a spline model (use `gam()` with a cubic regression spline on wind speed). Summarize and plot the results from the models and interpret which model is the best fit and why.
 
 ```{r}
+# create a lazy table and filter out values of atmospheric pressure outside the range 1000 to 1020
+lazy_table <- median_by_station %>%
+  filter(atm.press >= 1000 & atm.press <= 1020)
 
+# Create a scatterplot with linear regression line and smooth line
+ggplot(lazy_table, aes(x = atm.press, y = temp)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue", linetype = "dashed") +
+  geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs"), se = FALSE, color = "red") +
+  labs(title = "Scatterplot with Linear Regression and Smooth Line",
+       x = "Atmospheric Pressure",
+       y = "Temperature") +
+  theme_minimal()
+
+# Fit linear model and spline model
+linear_model <- lm(temp ~ atm.press, data = lazy_table)
+spline_model <- gam(temp ~ s(atm.press, bs = "cs"), data = lazy_table)
+
+# Summarize the results
+summary(linear_model)
+summary(spline_model)
+
+# Plot the results
+plot(spline_model, pch = 1, col = "blue", main = "Spline Model")
 ```
+
+### Interpretation:
+linear model: The Multiple R-squared measures the proportion of the variance in the dependent variable (Temperature) that is explained by the independent variable (Atmospheric Pressure) in the model. In our case it is 0.2645, meaning approximately 26.45% of the variance in Temperature is explained by Atmospheric Pressure. The p-value associated with the F-statistic is extremely small (< 2.2e-16), suggesting that the model is statistically significant. These results suggest that there is a statistically significant relationship between Atmospheric Pressure and Temperature, and the model provides a reasonable fit to the data.
+Spline model: The Adjusted R-squared is 0.297, indicating that approximately 29.7% of the variance in Temperature is explained by the spline model. Deviance explained = 30.2% implies that 30.2% of deviance in the response variable explained by the model. The GCV is a measure of model fit, with a lower value indicating better fit, in this case it is 13.526. These results suggest that the spline model provides a reasonable fit to the data, explaining a substantial proportion of the variability in Temperature. 
 
 ## Deliverables
 
