@@ -1,10 +1,13 @@
 ---
 title: "Lab 05 - Data Wrangling"
+author: "Cathy Pei"
+date: "Feb 7, 2024"
 output: 
   github_document: default
   tufte::tufte_html:
     css: style.css
 link-citations: yes
+always_allow_html: true
 ---
 
 # Learning goals
@@ -157,7 +160,8 @@ median_by_station <- data %>%
   summarise(
     temp = median(temp, na.rm = TRUE),
     wind.sp = median(wind.sp,na.rm = TRUE),
-    atm.press = median(atm.press,na.rm = TRUE)
+    atm.press = median(atm.press,na.rm = TRUE),
+    elev = median(elev,na.rm = TRUE)
   )
 median_by_station
 ```
@@ -221,7 +225,7 @@ median_by_station_with_state$distance <- sqrt((median_by_station_with_state$temp
 closest_stations <- median_by_station_with_state %>%
   group_by(STATE) %>%
   slice(which.min(distance)) %>%
-  select(STATE, USAFID, temp, wind.sp, distance)
+  select(STATE, USAFID, temp, wind.sp, distance, LAT, LON)
 
 # print the result
 print(closest_stations)
@@ -235,10 +239,53 @@ Knit the doc and save it on GitHub.
 For each state, identify which station is closest to the geographic mid-point (median) of the state. Combining these with the stations you identified in the previous question, use `leaflet()` to visualize all ~100 points in the same figure, applying different colors for the geographic median and the temperature and wind speed median.
 
 ```{r}
+# calculate geographic mid-point for each state
+state_midpoints <- median_by_station_with_state %>%
+  group_by(STATE) %>%
+  summarise(MedianLat = median(LAT),
+            MedianLon = median(LON))
 
+# find the closest station to the geographic mid-point for each state
+closest_midpoint_stations <- median_by_station_with_state %>%
+  left_join(state_midpoints, by = "STATE") %>%
+  mutate(distance_to_midpoint = sqrt((LAT - MedianLat)^2 + (LON - MedianLon)^2)) %>%
+  group_by(STATE) %>%
+  slice(which.min(distance_to_midpoint)) %>%
+  select(STATE, USAFID, MedianLat, MedianLon, temp, wind.sp, LAT, LON)
+
+# leaflet visualization
+map<-leaflet() %>%
+  addTiles() %>%
+  addAwesomeMarkers(
+    data = closest_midpoint_stations,
+    ~LON, ~LAT, 
+    icon = awesomeIcons(icon = "star", markerColor = "blue", library = "fa"),
+    popup = ~paste("State: ", STATE, "<br>",
+                   "USAFID: ", USAFID, "<br>",
+                   "Temperature: ", temp, "<br>",
+                   "Wind Speed: ", wind.sp),
+    group = "Geographic Median"
+  ) %>%
+  addAwesomeMarkers(
+    data = closest_stations,
+    ~LON, ~LAT, 
+    icon = awesomeIcons(icon = "circle", markerColor = "green", library = "fa"),
+    popup = ~paste("State: ", STATE, "<br>",
+                   "USAFID: ", USAFID, "<br>",
+                   "Temperature: ", temp, "<br>",
+                   "Wind Speed: ", wind.sp),
+    group = "Temperature/Wind Speed Median"
+  ) %>%
+   addLayersControl(
+    overlayGroups = c("Geographic Median", "Temperature/Wind Speed Median"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+map
 ```
 
 Knit the doc and save it on GitHub.
+
+#### NOTE: I found that Markdown does not support the rendering of interactive content such as Leaflet maps directly within the Markdown file on GitHub. The map can be perfectly displayed when running in Rmd file but not in md file.
 
 ## Question 4: Summary Table with `kableExtra`
 
@@ -251,6 +298,24 @@ Use the following breakdown for elevation:
 - High: elev >= 401
 
 ```{r}
+library(reshape2)
+# define elevation categories
+median_by_station_with_cat <- median_by_station_with_state %>%
+  mutate(elevation_cat = case_when(
+    elev < 93 ~ "Low",
+    elev >= 93 & elev < 401 ~ "Mid",
+    elev >= 401 ~ "High"
+  ))
+
+# create a summary table using kable
+summary_table <- median_by_station_with_cat %>%
+  group_by(STATE, elevation_cat) %>%
+  summarise(avg_temp = round(mean(temp, na.rm = TRUE), 2)) %>%
+  acast(STATE ~ elevation_cat, value.var = "avg_temp") %>%
+  kable()
+
+# print the summary table
+print(summary_table)
 
 ```
 
