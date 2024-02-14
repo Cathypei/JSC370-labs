@@ -5,6 +5,8 @@ output: html_document
 
 ```{r setup}
 knitr::opts_chunk$set(include  = TRUE)
+library(tidyverse)
+library(kableExtra)
 ```
 
 
@@ -145,13 +147,15 @@ Using the function `stringr::str_extract_all()` applied on `publications_txt`, c
 
 Write a regular expression that captures all such instances
 
-```{r univ-institute-regex, eval = FALSE}
-institution <- str_extract_all(
+```{r univ-institute-regex}
+institution <- stringr::str_extract_all(
   publications_txt,
-  "[YOUR REGULAR EXPRESSION HERE]"
+  "(University of [[:alnum:]]+|[[:alnum:]]+ Institute of [[:alnum:]]+)"
   ) 
 institution <- unlist(institution)
-as.data.frame(table(institution))
+#as.data.frame(table(institution))
+kable(as.data.frame(table(institution)), format = "html", escape = FALSE) %>%
+  kableExtra::scroll_box(width = "100%", height = "400px")
 ```
 
 Repeat the exercise and this time focus on schools and departments in the form of
@@ -161,12 +165,14 @@ Repeat the exercise and this time focus on schools and departments in the form o
 
 And tabulate the results
 
-```{r school-department, eval = FALSE}
-schools_and_deps <- str_extract_all(
-  abstracts_txt,
-  "[YOUR REGULAR EXPRESSION HERE]"
+```{r school-department}
+schools_and_deps <- stringr::str_extract_all(
+  publications_txt,
+  "(School of [[:alnum:]]+|Department of [[:alnum:]]+)"
   )
-as.data.frame(table(schools_and_deps))
+#as.data.frame(table(schools_and_deps))
+kable(as.data.frame(table(schools_and_deps)), format = "html", escape = FALSE) %>%
+  kableExtra::scroll_box(width = "100%", height = "400px")
 ```
 
 ## Question 5: Form a database
@@ -180,7 +186,7 @@ the XML a bit. We will use the `xml2::xml_children()` function to keep one eleme
 per id. This way, if a paper is missing the abstract, or something else, we will be able to properly match PUBMED IDS with their corresponding records.
 
 
-```{r one-string-per-response, eval = FALSE}
+```{r one-string-per-response}
 pub_char_list <- xml2::xml_children(publications)
 pub_char_list <- sapply(pub_char_list, as.character)
 ```
@@ -189,39 +195,43 @@ Now, extract the abstract and article title for each one of the elements of
 `pub_char_list`. You can either use `sapply()` as we just did, or simply
 take advantage of vectorization of `stringr::str_extract`
 
-```{r extracting-last-bit, eval = FALSE}
-abstracts <- str_extract(pub_char_list, "[YOUR REGULAR EXPRESSION]")
-abstracts <- str_remove_all(abstracts, "[CLEAN ALL THE HTML TAGS]")
-abstracts <- str_remove_all(abstracts, "[CLEAN ALL EXTRA WHITE SPACE AND NEW LINES]")
+```{r extracting-last-bit}
+abstracts <- stringr::str_extract(pub_char_list, '<AbstractText>(.*?)</AbstractText>')
+abstracts <- stringr::str_remove_all(abstracts, "<.*?>")
+abstracts <- stringr::str_replace_all(abstracts, "\\s+", " ")
 # alternatively, you can also use str_replace_all(abstracts, "[ORIGINAL]", "[REPLACEMENT]")
+count_no_abstract <- sum(is.na(abstracts))
 ```
 
   - How many of these don't have an abstract? 
 
-_Answer here._
+_Answer here._ `r count_no_abstract`
 
 Now, the title
 
-```{r process-titles, eval = FALSE}
-titles <- str_extract(pub_char_list, "[YOUR REGULAR EXPRESSION]")
-titles <- str_remove_all(titles, "[CLEAN ALL THE HTML TAGS]")
+```{r process-titles}
+titles <- stringr::str_extract(pub_char_list, '<ArticleTitle>(.*?)</ArticleTitle>')
+titles <- stringr::str_remove_all(titles, "<.*?>")
+count_no_title <- sum(is.na(titles))
 ```
 
 - How many of these don't have a title ? 
 
-_Answer here._
+_Answer here._ `r count_no_title`
 
 Finally, put everything together into a single `data.frame` and use
 `knitr::kable` to print the results
 
-```{r build-db, eval = FALSE}
+```{r build-db}
 database <- data.frame(
-  "[DATA TO CONCATENATE]"
+  Title = titles,
+  Abstract = abstracts
 )
-knitr::kable(database)
 
 # The table will likely be huge. How can we make the output look better?
 # (one idea: kableExtra::scroll_box())
+kable(database, format = "html", escape = FALSE) %>%
+  kableExtra::scroll_box(width = "100%", height = "400px")
 ```
 
 Done! Knit the document, commit, and push.
