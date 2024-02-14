@@ -379,20 +379,20 @@ number of results returned by PubMed in the following web address:</p>
 <pre><code>https://pubmed.ncbi.nlm.nih.gov/?term=sars-cov-2</code></pre>
 <p>Complete the lines of code:</p>
 <pre class="r"><code># Downloading the website
-website &lt;- xml2::read_html(&quot;[URL]&quot;)
+website &lt;- xml2::read_html(&quot;https://pubmed.ncbi.nlm.nih.gov/?term=sars-cov-2&quot;)
 
 # Finding the counts
-counts &lt;- xml2::xml_find_first(website, &quot;[XPath]&quot;)
+counts &lt;- xml2::xml_find_first(website, &quot;//span[@class=&#39;value&#39;]&quot;)
 
 # Turning it into text
 counts &lt;- as.character(counts)
 
 # Extracting the data using regex
-stringr::str_extract(counts, &quot;[REGEX FOR NUMBERS WITH COMMAS/DOTS]&quot;)</code></pre>
+counts &lt;- stringr::str_extract(counts, &quot;[0-9,]{7}&quot;)</code></pre>
 <ul>
 <li>How many sars-cov-2 papers are there?</li>
 </ul>
-<p><em>Answer here.</em></p>
+<p><em>Answer here.</em> 218,712</p>
 <p>Don’t forget to commit your work!</p>
 </div>
 <div id="question-2-academic-publications-on-covid19-related-to-toronto" class="section level2">
