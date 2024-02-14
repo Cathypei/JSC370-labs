@@ -1,6 +1,8 @@
 ---
 title: "Lab 06 - Regular Expressions and Web Scraping"
 output: html_document
+author: "Cathy Pei"
+date: "Feb 14, 2024"
 ---
 
 ```{r setup}
