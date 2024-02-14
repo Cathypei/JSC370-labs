@@ -3,7 +3,7 @@ title: "Lab 06 - Regular Expressions and Web Scraping"
 output: html_document
 ---
 
-```{r setup, echo=FALSE}
+```{r setup}
 knitr::opts_chunk$set(include  = TRUE)
 ```
 
@@ -67,11 +67,14 @@ Use the function `httr::GET()` to make the following query:
 
 The parameters passed to the query are documented [here](https://www.ncbi.nlm.nih.gov/books/NBK25499/).
 
-```{r papers-covid-toronto, eval=FALSE}
+```{r papers-covid-toronto}
 library(httr)
 query_ids <- GET(
-  url   = "BASELINE URL",
-  query = list("QUERY PARAMETERS")
+  url   = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",
+  query = list(db = "pubmed",
+  term = "covid19 toronto",
+  retmax = 300
+  )
 )
 
 # Extracting the content of the response of GET
@@ -91,15 +94,15 @@ The Ids are wrapped around text in the following way: `<Id>... id number ...</Id
 we can use a regular expression that extract that information. Fill out the
 following lines of code:
 
-```{r get-ids, eval = FALSE}
+```{r get-ids}
 # Turn the result into a character vector
 ids <- as.character(ids)
 
 # Find all the ids 
-ids <- stringr::str_extract_all(ids, "PATTERN")[[1]]
+ids <- stringr::str_extract_all(ids, "<Id>[0-9]+</Id>")[[1]]
 
 # Remove all the leading and trailing <Id> </Id>. Make use of "|"
-ids <- stringr::str_remove_all(ids, "PATTERN")
+ids <- stringr::str_remove_all(ids, "<Id>|</Id>")
 ```
 
 With the ids in hand, we can now try to get the abstracts of the papers. As
@@ -115,11 +118,14 @@ before, we will need to coerce the contents (results) to a list using:
     
 **Pro-tip**: If you want `GET()` to take some element literal, wrap it around `I()` (as you would do in a formula in R). For example, the text `"123,456"` is replaced with `"123%2C456"`. If you don't want that behavior, you would need to do the following `I("123,456")`.
     
-```{r get-abstracts, eval = FALSE}
+```{r get-abstracts}
 publications <- GET(
-  url   = "BASELINE URL HERE",
+  url   = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
   query = list(
-    "PARAMETERS OF THE QUERY"
+    db = 'pubmed',
+    id = paste(ids, collapse = ','),
+    retmax = 300,
+    rettype = 'abstract'
     )
 )
 
