@@ -1,6 +1,6 @@
 ---
 title: "Lab 08 - Text Mining/NLP"
-output: github_document
+output: html_document
 author: "Cathy Pei"
 date: "Feb 28, 2024"
 ---
