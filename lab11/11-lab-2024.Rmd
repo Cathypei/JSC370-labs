@@ -1,0 +1,314 @@
+---
+title: "Lab 11 - Interactive Visualization"
+output: html_document
+---
+
+```{r setup, echo=FALSE, eval=TRUE}
+knitr::opts_chunk$set(eval = FALSE, include  = FALSE)
+```
+
+# Learning Goals
+
+- Read in and process Starbucks informatio
+- Create interactive graphs of different types using `ggplotly()` and `plot_ly()` 
+- Customize the hoverinfo and other plot features
+- Create a Choropleth map using `plot_geo()`
+
+# Lab Description
+
+We will work with two Starbucks datasets, one on the store locations (global) and one for the nutritional data for their food and drink items. We will do some text analysis of the menu items.
+
+# Steps
+
+### 0. Install and load libraries
+
+```{r message=FALSE, echo=FALSE, warning=FALSE, eval=TRUE}
+
+library(tidyverse)
+library(plotly)
+library(widgetframe)
+library(tidytext)
+
+```
+### 1. Read in the data
+
+- There are 4 datasets to read in, Starbucks locations, Starbucks nutrition, US population by state, and US state abbreviations.
+
+```{r eval=TRUE}
+
+sb_locs <- read_csv('starbucks-locations.csv')
+
+sb_nutr <- read_csv('starbucks-menu-nutrition.csv')
+
+usa_pop <- read_csv('us_state_pop.csv')
+
+usa_states<-read_csv('states.csv')
+```
+
+### 2. Look at the data
+
+- Inspect each dataset to look at variable names and ensure it was imported correctly
+
+
+```{r eval=TRUE, include=TRUE}
+str(sb_locs)
+str(sb_nutr)
+str(usa_pop)
+str(usa_states)
+```
+
+### 3. Format the data
+
+- Subset Starbucks data to the US.
+- Create counts of Starbucks stores by state.
+- Merge population in with the store count by state.
+- Inspect the range values for each variable. 
+
+
+```{r eval=TRUE, include=TRUE}
+
+sb_usa <- sb_locs |> filter(Country == "US")
+
+sb_usa <- sb_usa %>%
+  rename(state = 'State/Province')
+
+sb_locs_state <- sb_usa |>
+  group_by(state) |>
+  summarize(Store_Count = n())
+
+
+# need state abbreviations
+usa_pop_abbr <- 
+  full_join(usa_pop, usa_states, by=c("state"="State")) 
+  
+sb_locs_state <- full_join(sb_locs_state, usa_pop_abbr, by= c("state"="Abbreviation"))
+  
+
+```
+
+### 4. Use `ggplotly` for EDA
+
+Answer the following questions:
+
+- Are the number of Starbucks proportional to the population of a state? (scatterplot)
+
+- Is the caloric distribution of Starbucks menu items different for drinks and food? (histogram)
+
+- What are the top 20 words in Starbucks menu items? (bar plot)
+
+```{r eval=TRUE, include=TRUE}
+ggplot(sb_locs_state, aes(x = population, y = Store_Count)) +
+  geom_point() +  # Add points to represent each state
+  labs(x = "Population", y = "Number of Starbucks Stores", title = "Starbucks Stores vs Population by State")
+```
+
+#### Observation
+We can observe a linear relationship between population and the number of stores, indicating that the number of Starbucks stores is proportional to the population of a state.
+
+
+```{r eval=TRUE, include=TRUE}
+drinks <- sb_nutr[sb_nutr$Category == "Drinks", ]
+food <- sb_nutr[sb_nutr$Category == "Food", ]
+
+# Create histograms for drinks and food
+ggplot() +
+  geom_histogram(data = drinks, aes(x = Calories), bins = 30, fill = "blue", alpha = 0.7) +
+  geom_histogram(data = food, aes(x = Calories), bins = 30, fill = "orange", alpha = 0.7) +
+  labs(x = "Calories", y = "Frequency", title = "Caloric Distribution of Starbucks Menu Items") +
+  scale_fill_manual(values = c("blue", "orange"), name = "Category", labels = c("Drinks", "Food")) +
+  theme_minimal()
+```
+
+#### Observation
+We can observe that the caloric distribution of Starbucks menu items differs between drinks and food. Food items tend to have more calories than drinks.
+
+
+```{r eval=TRUE, include=TRUE}
+
+# Tokenize the text into words
+word_counts <- sb_nutr %>%
+  unnest_tokens(word, Item) %>%
+  count(word, sort = TRUE)
+
+# Select the top 20 words
+top_20_words <- word_counts %>%
+  slice_head(n = 20)
+
+# Create a bar plot
+ggplot(top_20_words, aes(x = reorder(word, n), y = n)) +
+  geom_col(fill = "skyblue") +
+  coord_flip() +
+  labs(x = "Word", y = "Frequency", title = "Top 20 Words in Starbucks Menu Items")
+```
+
+
+
+### 5. Scatterplots using `plot_ly()`
+
+- Create a scatterplot using `plot_ly()` representing the relationship between calories and carbs
+- Color points by category
+
+```{r eval=TRUE, include=TRUE}
+sb_nutr <- sb_nutr %>%
+  rename(Carbs = 'Carb. (g)')
+sb_nutr <- sb_nutr %>%
+  rename(Fat = 'Fat (g)')
+sb_nutr <- sb_nutr %>%
+  rename(Fiber = 'Fiber (g)')
+sb_nutr <- sb_nutr %>%
+  rename(Protein = 'Protein (g)')
+
+scatterplot <- plot_ly(sb_nutr, x = ~Calories, y = ~Carbs, color = ~Category, colors = c("blue", "orange")) %>%
+  add_markers() %>%
+  layout(xaxis = list(title = "Calories"), yaxis = list(title = "Carbs"), title = "Calories vs Carbs by Category")
+scatterplot
+```
+
+
+
+
+- Create this scatterplot but for the items consisting of the top 10 words
+- Color again by category
+- Add hoverinfo specifying the word in the item name
+- Add layout information to title the chart and the axes
+- Enable `hovermode = "compare"`
+  
+```{r eval=TRUE, include=TRUE}
+# Tokenize the text into words
+word_counts <- sb_nutr %>%
+  unnest_tokens(word, Item) %>%
+  count(word, sort = TRUE)
+
+# Select the top 10 words
+top_10_words <- word_counts %>%
+  slice_head(n = 10) %>%
+  pull(word)
+
+top_10_words_lower <- tolower(top_10_words)
+
+# Filter items containing the top 10 words
+filtered_items <- sb_nutr %>%
+  filter(str_detect(tolower(Item), paste(top_10_words, collapse = "|")))
+
+# Create a scatterplot
+scatterplot <- plot_ly(filtered_items, x = ~Calories, y = ~Carbs, color = ~Category, colors = c("blue", "orange")) %>%
+  add_markers(text = ~Item, hoverinfo = "text") %>%
+  layout(xaxis = list(title = "Calories"), 
+         yaxis = list(title = "Carbs"), 
+         title = "Calories vs Carbs for Items with Top 10 Words",
+         hovermode = "compare")
+
+scatterplot
+  
+```
+
+ 
+
+
+
+### 6. `plot_ly` Boxplots
+
+- Create a boxplot of all of the nutritional variables in groups by the 10 item words.
+
+```{r eval=TRUE, include=TRUE}
+
+# Create a new column indicating which top 10 word is present in each item
+sb_nutr <- sb_nutr %>%
+  mutate(top_word = str_extract(tolower(Item), paste(top_10_words_lower, collapse = "|")))
+
+
+# Convert the top_word column to a factor
+# sb_nutr$top_word <- factor(sb_nutr$top_word)
+# sb_nutr$Category <- as.factor(sb_nutr$Category)
+
+# Reshape the data for plotting
+sb_nutr_long <- sb_nutr %>%
+  select(-Item) %>%
+  pivot_longer(cols = c(Carbs, Fat, Fiber, Protein), names_to = "nutritional_variable", values_to = "value")
+
+# Create the boxplot
+ggplot(sb_nutr_long, aes(x = top_word, y = value, fill = top_word)) +
+  geom_boxplot() +
+  facet_wrap(~ nutritional_variable, scales = "free") +
+  labs(x = "Top 10 Words", y = "Value", fill = "Top 10 Words", 
+       title = "Boxplot of Nutritional Variables by Top 10 Item Words") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+```
+
+### 7. 3D Scatterplot
+
+- Create a 3D scatterplot between Calories, Carbs, and Protein for the items containing the top 10 words
+- Do you see any patterns?
+
+```{r eval=TRUE, include=TRUE}
+
+scatterplot_3d <- plot_ly(filtered_items, x = ~Calories, y = ~Carbs, z = ~Protein,
+                          type = "scatter3d", mode = "markers",
+                          marker = list(size = 5)) %>%
+  layout(scene = list(xaxis = list(title = "Calories"),
+                      yaxis = list(title = "Carbs"),
+                      zaxis = list(title = "Protein")),
+         title = "3D Scatterplot of Calories, Carbs, and Protein for Items Containing Top 10 Words")
+
+scatterplot_3d
+
+```
+
+#### Observation
+We can see that there is a positive relationship between calories and protein, as well as a positive relationship between calories and carbs. It is hard to tell whether there is a relationship between carbs and protein.
+
+### 8. `plot_ly` Map
+
+- Create a map to visualize the number of stores per state, and another for the population by state. Use subplot to put the maps side by side.
+- Describe the differences if any.
+
+```{r eval=TRUE, include=TRUE}
+# Set up mapping details
+set_map_details <- list(
+  scope = 'usa',
+  projection = list(type = 'albers usa'),
+  showlakes = TRUE,
+  lakecolor = toRGB('steelblue')
+)
+
+# Make sure both maps are on the same color scale
+shadeLimit <- 125
+
+loc_filtered <- sb_locs_state[!is.na(sb_locs_state$Store_Count), ]
+
+# Create hover text for map 1
+hover_text_map1 <- with(sb_locs_state, paste("Number of Starbucks: ", Store_Count, '<br>', "State: ", state.y, '<br>'))
+
+# Create the map for number of stores per state
+map1 <- plot_geo(locationmode = 'USA-states') %>%
+  add_trace(data = sb_locs_state,
+            z = ~Store_Count,  # Values to represent on the map
+            locations = ~state,  # Locations (state names)
+            text = hover_text_map1,  # Hover text
+            color = ~Store_Count,
+            colors = 'Blues',  # Color scale
+            colorbar = list(title = "Number of Starbucks")) %>%
+  layout(title = "Number of Starbucks Stores per State", geo = set_map_details)
+
+# Create hover text for map 2
+hover_text_map2 <- with(sb_locs_state, paste("Population: ", population, '<br>', "State: ", state.y, '<br>'))
+
+# Create the map for population by state
+map2 <- plot_geo(locationmode = 'USA-states') %>%
+  add_trace(data = sb_locs_state,
+            z = ~population,  # Values to represent on the map
+            locations = ~state,  # Locations (state names)
+            text = hover_text_map2,  # Hover text
+            color = ~population,
+            colors = 'Blues',  # Color scale
+            colorbar = list(title = "Population")) %>%
+  layout(title = "Population by State", geo = set_map_details)
+
+# Display the subplot
+subplot(map1, map2)
+```
+
+#### Observation
+We can observe that states with large populations also have a significant number of Starbucks stores, further indicating a proportional relationship.
+
